@@ -1,31 +1,30 @@
 FROM node:20-alpine
 
-WORKDIR /app
-
-# Install curl for health checks
 RUN apk add --no-cache curl
 
+WORKDIR /app
+
 # Copy package files
-COPY package*.json ./
-COPY services/catalog-svc/package*.json ./services/catalog-svc/
-COPY libs/ ./libs/
+COPY services/catalog-svc/package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy source code
-COPY services/catalog-svc/ ./services/catalog-svc/
-COPY tsconfig.json ./
+# Copy source code and libs
+COPY services/catalog-svc/src ./src
+COPY libs/ ./libs/
+COPY services/catalog-svc/tsconfig*.json ./
+COPY services/catalog-svc/nest-cli.json ./
 
-# Build the application
-RUN npm run build --workspace=services/catalog-svc
+# Install ts-node for running TypeScript directly
+RUN npm install -g ts-node
 
 # Expose port
-EXPOSE 3003
+EXPOSE 11000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3003/health || exit 1
+  CMD curl -f http://localhost:11000/health || exit 1
 
-# Start the application
-CMD ["npm", "start", "--workspace=services/catalog-svc"]
+# Start the application directly with ts-node
+CMD ["npx", "ts-node", "src/main.ts"]

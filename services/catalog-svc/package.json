@@ -5,8 +5,9 @@
   "main": "dist/main",
   "scripts": {
     "build": "nest build",
+    "dev": "ts-node src/main.ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "start": "nest start",
+    "start": "node dist/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",

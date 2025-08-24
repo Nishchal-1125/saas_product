@@ -1,31 +1,30 @@
 FROM node:20-alpine
 
-WORKDIR /app
-
-# Install curl for health checks
 RUN apk add --no-cache curl
 
+WORKDIR /app
+
 # Copy package files
-COPY package*.json ./
-COPY services/cart-svc/package*.json ./services/cart-svc/
-COPY libs/ ./libs/
+COPY services/cart-svc/package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy source code
-COPY services/cart-svc/ ./services/cart-svc/
-COPY tsconfig.json ./
+# Copy source code and libs
+COPY services/cart-svc/src ./src
+COPY libs/ ./libs/
+COPY services/cart-svc/tsconfig*.json ./
+COPY services/cart-svc/nest-cli.json ./
 
-# Build the application
-RUN npm run build --workspace=services/cart-svc
+# Install ts-node for running TypeScript directly
+RUN npm install -g ts-node
 
 # Expose port
-EXPOSE 3004
+EXPOSE 12000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3004/health || exit 1
+  CMD curl -f http://localhost:12000/health || exit 1
 
-# Start the application
-CMD ["npm", "start", "--workspace=services/cart-svc"]
+# Start the application directly with ts-node
+CMD ["npx", "ts-node", "src/main.ts"]
