@@ -1,0 +1,358 @@
+services:
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ecommerce-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./infra/nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - api-gateway
+      - websocket-gateway
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Databases
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecommerce-postgres
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7-jammy
+    container_name: ecommerce-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecommerce-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ecommerce-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: ecommerce-api-gateway
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/ecommerce
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key
+      - AUTH_SERVICE_URL=http://auth-svc:3001
+      - USER_SERVICE_URL=http://user-svc:3002
+      - CATALOG_SERVICE_URL=http://catalog-svc:3003
+      - CART_SERVICE_URL=http://cart-svc:3004
+      - ORDER_SERVICE_URL=http://order-svc:3005
+      - PAYMENT_SERVICE_URL=http://payment-svc:3006
+      - NOTIFICATION_SERVICE_URL=http://notification-svc:3007
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
+
+  # Auth Service
+  auth-svc:
+    build:
+      context: .
+      dockerfile: services/auth-svc/Dockerfile
+    container_name: ecommerce-auth-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/ecommerce
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key
+      - JWT_REFRESH_SECRET=your-super-secret-refresh-key
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/auth-svc:/app
+      - /app/node_modules
+
+  # User Service
+  user-svc:
+    build:
+      context: .
+      dockerfile: services/user-svc/Dockerfile
+    container_name: ecommerce-user-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/ecommerce
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/user-svc:/app
+      - /app/node_modules
+
+  # Catalog Service
+  catalog-svc:
+    build:
+      context: .
+      dockerfile: services/catalog-svc/Dockerfile
+    container_name: ecommerce-catalog-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - MONGODB_URL=mongodb://mongodb:27017/ecommerce
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3003:3003"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/catalog-svc:/app
+      - /app/node_modules
+
+  # Cart Service
+  cart-svc:
+    build:
+      context: .
+      dockerfile: services/cart-svc/Dockerfile
+    container_name: ecommerce-cart-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - MONGODB_URL=mongodb://mongodb:27017/ecommerce
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3004:3004"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/cart-svc:/app
+      - /app/node_modules
+
+  # Order Service
+  order-svc:
+    build:
+      context: .
+      dockerfile: services/order-svc/Dockerfile
+    container_name: ecommerce-order-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/ecommerce
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://admin:password@rabbitmq:5672
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/order-svc:/app
+      - /app/node_modules
+
+  # Payment Service
+  payment-svc:
+    build:
+      context: .
+      dockerfile: services/payment-svc/Dockerfile
+    container_name: ecommerce-payment-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/ecommerce
+      - REDIS_URL=redis://redis:6379
+      - STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/payment-svc:/app
+      - /app/node_modules
+
+  # Notification Service
+  notification-svc:
+    build:
+      context: .
+      dockerfile: services/notification-svc/Dockerfile
+    container_name: ecommerce-notification-svc
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/ecommerce
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://admin:password@rabbitmq:5672
+      - SMTP_HOST=localhost
+      - SMTP_PORT=1025
+    ports:
+      - "3007:3007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/notification-svc:/app
+      - /app/node_modules
+
+  # WebSocket Gateway
+  websocket-gateway:
+    build:
+      context: .
+      dockerfile: services/websocket-gateway/Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3008
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3008:3008"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    volumes:
+      - ./services/websocket-gateway:/app
+      - /app/node_modules
+
+  # Development tools
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ecommerce-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - ecommerce-network
+
+  # Frontend Application
+  frontend:
+    build:
+      context: .
+      dockerfile: ecommerce-frontend/Dockerfile
+    container_name: ecommerce-frontend
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost/api
+      - NEXT_PUBLIC_WS_URL=http://localhost
+    ports:
+      - "3100:3000"
+    depends_on:
+      - nginx
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge

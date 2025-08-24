@@ -1,0 +1,58 @@
+{
+  "name": "ecommerce-microservices",
+  "version": "1.0.0",
+  "description": "Production-ready microservices architecture for e-commerce",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "libs/*",
+    "ecommerce-frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev": "docker compose up -d",
+    "start": "docker compose up -d --build",
+    "stop": "docker compose down",
+    "clean": "docker compose down -v --rmi all",
+    "logs": "docker compose logs -f",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "setup": "npm install && npm run build",
+    "frontend:dev": "cd ecommerce-frontend && npm run dev",
+    "frontend:build": "cd ecommerce-frontend && npm run build",
+    "services:dev": "docker compose up -d postgres redis mongodb && npm run dev --workspace=services/api-gateway",
+    "generate:types": "npm run generate:types --workspaces",
+    "start:all": "powershell -ExecutionPolicy Bypass -File ./start-all.ps1",
+    "stop:all": "powershell -ExecutionPolicy Bypass -File ./stop-all.ps1",
+    "health": "powershell -ExecutionPolicy Bypass -File ./health-check.ps1",
+    "quick-start": "npm run start:all"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0",
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/ecommerce-microservices.git"
+  },
+  "keywords": [
+    "microservices",
+    "ecommerce",
+    "nestjs",
+    "nextjs",
+    "typescript",
+    "docker",
+    "redis",
+    "postgresql",
+    "mongodb"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
