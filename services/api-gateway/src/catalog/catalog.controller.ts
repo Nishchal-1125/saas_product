@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 @ApiTags('catalog')
 @Controller('catalog')
 export class CatalogController {
-  private readonly CATALOG_SERVICE_URL = 'http://localhost:3004';
+  private readonly CATALOG_SERVICE_URL = 'http://localhost:11000';
 
   @Get('products')
   @ApiOperation({ summary: 'Get all products' })

@@ -2,12 +2,12 @@ import { Controller, All, Req, Res, HttpException, HttpStatus } from '@nestjs/co
 import { Request, Response } from 'express';
 import axios, { AxiosError } from 'axios';
 
-@Controller('auth')
-export class AuthController {
-  private readonly authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:10000';
+@Controller('cart')
+export class CartController {
+  private readonly cartServiceUrl = process.env.CART_SERVICE_URL || 'http://localhost:12000';
 
   @All('*')
-  async proxyToAuthService(@Req() req: Request, @Res() res: Response) {
+  async proxyToCartService(@Req() req: Request, @Res() res: Response) {
     try {
       const { method, url, headers, body } = req;
       
@@ -15,7 +15,7 @@ export class AuthController {
       const forwardHeaders = { ...headers };
       delete forwardHeaders.host;
       
-      const targetUrl = `${this.authServiceUrl}${url}`;
+      const targetUrl = `${this.cartServiceUrl}${url}`;
       
       const response = await axios({
         method: method as any,
@@ -32,16 +32,14 @@ export class AuthController {
 
       res.status(response.status).json(response.data);
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        // Forward error response from auth service
-        res.status(error.response.status).json(error.response.data);
+      if (error instanceof AxiosError) {
+        const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+        const message = error.response?.data?.message || 'Cart service error';
+        res.status(status).json({ message, error: 'Cart Service Error' });
       } else {
-        // Handle network errors
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
-          success: false,
-          message: 'Auth service unavailable',
-          error: errorMessage,
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          message: 'Internal server error',
+          error: 'Gateway Error'
         });
       }
     }
