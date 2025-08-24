@@ -54,12 +54,15 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE || 'http://localhost:10000';
 
 // Create axios instance with interceptors
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 // Auth Provider Component

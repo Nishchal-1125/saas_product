@@ -14,15 +14,15 @@ RUN npm install
 COPY services/api-gateway/ ./services/api-gateway/
 COPY tsconfig.json ./
 
-# Build the application
-RUN npm run build --workspace=services/api-gateway
+# Install ts-node for runtime
+RUN npm install -g ts-node typescript
 
 # Expose port
-EXPOSE 3000
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:8000/health || exit 1
 
-# Start the application
-CMD ["npm", "start", "--workspace=services/api-gateway"]
+# Start the application with ts-node
+CMD ["npx", "ts-node", "services/api-gateway/src/main.ts"]
